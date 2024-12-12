@@ -89,6 +89,8 @@ void setup() {
     MainHelper::resetCycleTimer();
 }
 
+#endif
+
 void loop() {
     MainHelper::watchdogReset();
     if (wifiWidget->isConnected() == false) {
