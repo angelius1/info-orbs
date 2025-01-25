@@ -23,13 +23,7 @@ void WifiWidget::setup() {
 
     // Hold right button when connecting to power to reset wifi settings
     // these are stored by the ESP WiFi library
-    #ifdef USE_ROTARY_ENCODER
-        int button = BUTTON_OK;
-    #else
-        int button = BUTTON_RIGHT;   
-    #endif
-    
-    if (digitalRead(button) == Button::PRESSED_LEVEL) {
+    if (digitalRead(BUTTON_RIGHT_PIN) == Button::PRESSED_LEVEL) {
         m_wifiManager.resetSettings();
         m_manager.drawCentreString("Wifi Settings reset", ScreenCenterX, ScreenCenterY + lineHeight, fontSize);
         delay(messageDelay);
