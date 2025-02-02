@@ -51,7 +51,6 @@
 
 class MainHelper {
 public:
-
 #ifdef USE_ROTARY_ENCODER
     static void init(WiFiManager *wm, ConfigManager *cm, ScreenManager *sm, WidgetSet *ws, ClickEncoder *ce);
 #else

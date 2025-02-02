@@ -77,12 +77,12 @@ void setup() {
     widgetSet = new WidgetSet(sm);
 
     // Pass references to MainHelper
-    
-    #ifdef USE_ROTARY_ENCODER
-        MainHelper::init(wifiManager, config, sm, widgetSet, encoder);
-    #else
-        MainHelper::init(wifiManager, config, sm, widgetSet);
-    #endif
+
+#ifdef USE_ROTARY_ENCODER
+    MainHelper::init(wifiManager, config, sm, widgetSet, encoder);
+#else
+    MainHelper::init(wifiManager, config, sm, widgetSet);
+#endif
     MainHelper::setupLittleFS();
     MainHelper::setupConfig();
     MainHelper::setupButtons();
