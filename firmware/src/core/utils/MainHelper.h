@@ -10,6 +10,7 @@
 #include "WidgetSet.h"
 #include "git_info.h"
 #include <Arduino.h>
+#include <ClickEncoder.h>
 
 #define VERSION "1.2beta"
 
@@ -50,7 +51,13 @@
 
 class MainHelper {
 public:
+
+#ifdef USE_ROTARY_ENCODER
+    static void init(WiFiManager *wm, ConfigManager *cm, ScreenManager *sm, WidgetSet *ws, ClickEncoder *ce);
+#else
     static void init(WiFiManager *wm, ConfigManager *cm, ScreenManager *sm, WidgetSet *ws);
+#endif
+
     static void isrButtonChangeLeft();
     static void isrButtonChangeMiddle();
     static void isrButtonChangeRight();
@@ -62,6 +69,12 @@ public:
 
     static void buttonPressed(uint8_t buttonId, ButtonState state);
     static void checkButtons();
+
+#ifdef USE_ROTARY_ENCODER
+    static void performEncoderService();
+    static void handleEncoderTurn();
+    static void handleEncoderClick();
+#endif
 
     static void checkCycleWidgets();
     static void resetCycleTimer();

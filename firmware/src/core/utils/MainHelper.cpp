@@ -8,9 +8,6 @@
 #include <TimeLib.h>
 #include <esp_task_wdt.h>
 
-static Button buttonLeft;
-static Button buttonMiddle;
-static Button buttonRight;
 static WiFiManager *s_wifiManager = nullptr;
 static ConfigManager *s_configManager = nullptr;
 static ScreenManager *s_screenManager = nullptr;
@@ -27,39 +24,70 @@ static int s_dimEndHour = DIM_END_HOUR;
 static int s_dimBrightness = DIM_BRIGHTNESS;
 static int s_languageId = DEFAULT_LANGUAGE;
 
-void MainHelper::init(WiFiManager *wm, ConfigManager *cm, ScreenManager *sm, WidgetSet *ws) {
-    s_wifiManager = wm;
-    s_configManager = cm;
-    s_screenManager = sm;
-    s_widgetSet = ws;
-    watchdogInit();
-}
+#ifdef USE_ROTARY_ENCODER
+    static unsigned long lastTimeEncoderService = 0;
+    static unsigned long lastTimeEncoderTurn = 0;
+    static unsigned long lastTimeEncoderClick = 0;
+    static int16_t encoderValue = 0;
+    static int16_t encoderLastValue = 0;
+    static bool encoderBtnIsHeld = false;
+    static ClickEncoder *s_encoder;
+#else
+    static Button buttonLeft;
+    static Button buttonMiddle;
+    static Button buttonRight;
+#endif
 
+#ifdef USE_ROTARY_ENCODER
+    void MainHelper::init(WiFiManager *wm, ConfigManager *cm, ScreenManager *sm, WidgetSet *ws, ClickEncoder *ce) {
+        s_wifiManager = wm;
+        s_configManager = cm;
+        s_screenManager = sm;
+        s_widgetSet = ws;
+        s_encoder = ce;
+        watchdogInit();
+    }    
+#else
+    void MainHelper::init(WiFiManager *wm, ConfigManager *cm, ScreenManager *sm, WidgetSet *ws) {
+        s_wifiManager = wm;
+        s_configManager = cm;
+        s_screenManager = sm;
+        s_widgetSet = ws;
+        watchdogInit();
+    }
+#endif
+
+#ifndef USE_ROTARY_ENCODER
 /**
  * The ISR handlers must be static
  */
 void MainHelper::isrButtonChangeLeft() { buttonLeft.isrButtonChange(); }
 void MainHelper::isrButtonChangeMiddle() { buttonMiddle.isrButtonChange(); }
 void MainHelper::isrButtonChangeRight() { buttonRight.isrButtonChange(); }
+#endif
 
 void MainHelper::setupButtons() {
-    bool invertButtons = s_orbRotation == 1 || s_orbRotation == 2;
-    int leftPin = BUTTON_LEFT_PIN;
-    int middlePin = BUTTON_MIDDLE_PIN;
-    int rightPin = BUTTON_RIGHT_PIN;
+    #ifdef USE_ROTARY_ENCODER
+        s_encoder = new ClickEncoder(ROTARY_CLK, ROTARY_DT, ROTARY_SW);
+    #else
+        bool invertButtons = s_orbRotation == 1 || s_orbRotation == 2;
+        int leftPin = BUTTON_LEFT_PIN;
+        int middlePin = BUTTON_MIDDLE_PIN;
+        int rightPin = BUTTON_RIGHT_PIN;
 
-    if (invertButtons) {
-        leftPin = BUTTON_RIGHT_PIN;
-        rightPin = BUTTON_LEFT_PIN;
-    }
+        if (invertButtons) {
+            leftPin = BUTTON_RIGHT_PIN;
+            rightPin = BUTTON_LEFT_PIN;
+        }
 
-    buttonLeft.begin(leftPin);
-    buttonMiddle.begin(middlePin);
-    buttonRight.begin(rightPin);
+        buttonLeft.begin(leftPin);
+        buttonMiddle.begin(middlePin);
+        buttonRight.begin(rightPin);
 
-    attachInterrupt(digitalPinToInterrupt(leftPin), isrButtonChangeLeft, CHANGE);
-    attachInterrupt(digitalPinToInterrupt(middlePin), isrButtonChangeMiddle, CHANGE);
-    attachInterrupt(digitalPinToInterrupt(rightPin), isrButtonChangeRight, CHANGE);
+        attachInterrupt(digitalPinToInterrupt(leftPin), isrButtonChangeLeft, CHANGE);
+        attachInterrupt(digitalPinToInterrupt(middlePin), isrButtonChangeMiddle, CHANGE);
+        attachInterrupt(digitalPinToInterrupt(rightPin), isrButtonChangeRight, CHANGE);
+    #endif
 }
 
 void MainHelper::setupConfig() {
@@ -114,6 +142,69 @@ void MainHelper::buttonPressed(uint8_t buttonId, ButtonState state) {
     }
 }
 
+#ifdef USE_ROTARY_ENCODER
+
+void MainHelper::performEncoderService() {
+    if (micros() - lastTimeEncoderService < 500)
+        return;
+
+    lastTimeEncoderService = micros();
+    s_encoder->service();
+}
+
+void MainHelper::handleEncoderTurn() {
+    encoderValue += s_encoder->getValue();
+
+    if (millis() - lastTimeEncoderTurn < 1000)
+       return;
+
+    if (encoderLastValue < encoderValue) {
+        Serial.println("rotary left -> switch to prev Widget");
+        buttonPressed(BUTTON_LEFT, BTN_SHORT);
+    }
+    else if (encoderLastValue > encoderValue) {
+        Serial.println("rotary right -> switch to next Widget");  
+        buttonPressed(BUTTON_RIGHT, BTN_SHORT);        
+    }
+
+    encoderLastValue = encoderValue;
+    lastTimeEncoderTurn = millis();
+}
+
+void MainHelper::handleEncoderClick() {
+    if (millis() - lastTimeEncoderClick < 100)
+      return;
+
+    ClickEncoder::Button encoderButton = s_encoder->getButton();
+    if (encoderButton == ClickEncoder::Clicked) {
+        Serial.println("rotary click -> send OK short");   
+        buttonPressed(BUTTON_OK, BTN_SHORT);
+    }
+    else if (encoderButton == ClickEncoder::DoubleClicked) {
+        Serial.println("rotary dblclick -> send OK medium");        
+        buttonPressed(BUTTON_OK, BTN_MEDIUM);
+    }
+    else if (!encoderBtnIsHeld && encoderButton == ClickEncoder::Held ) {
+        Serial.println("rotary held start - send OK long");
+        encoderBtnIsHeld = true;     
+        buttonPressed(BUTTON_OK, BTN_LONG);
+    }
+    else if (encoderBtnIsHeld && encoderButton == ClickEncoder::Released ) {
+        Serial.println("rotary held end");
+        encoderBtnIsHeld = false;
+    }
+
+    lastTimeEncoderClick = millis();
+  }
+
+void MainHelper::checkButtons() {
+    performEncoderService();
+    handleEncoderTurn();
+    handleEncoderClick();
+}
+
+#else
+
 void MainHelper::checkButtons() {
     ButtonState leftState = buttonLeft.getState();
     if (leftState != BTN_NOTHING) {
@@ -128,6 +219,8 @@ void MainHelper::checkButtons() {
         buttonPressed(BUTTON_RIGHT, rightState);
     }
 }
+
+#endif
 
 void MainHelper::checkCycleWidgets() {
     if (s_widgetSet && s_widgetCycleDelay > 0 && (s_widgetCycleDelayPrev == 0 || (millis() - s_widgetCycleDelayPrev) >= s_widgetCycleDelay * 1000)) {

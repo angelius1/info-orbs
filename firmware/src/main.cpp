@@ -8,6 +8,7 @@
 #include "webdatawidget/WebDataWidget.h"
 #include "wifiwidget/WifiWidget.h"
 #include <ArduinoLog.h>
+#include <ClickEncoder.h>
 
 TFT_eSPI tft = TFT_eSPI();
 
@@ -17,6 +18,10 @@ ScreenManager *sm{nullptr};
 ConfigManager *config{nullptr};
 OrbsWiFiManager *wifiManager{nullptr};
 WidgetSet *widgetSet{nullptr};
+
+#ifdef USE_ROTARY_ENCODER
+ClickEncoder *encoder{nullptr};
+#endif
 
 void addWidgets() {
     // Always add clock
@@ -72,7 +77,12 @@ void setup() {
     widgetSet = new WidgetSet(sm);
 
     // Pass references to MainHelper
-    MainHelper::init(wifiManager, config, sm, widgetSet);
+    
+    #ifdef USE_ROTARY_ENCODER
+        MainHelper::init(wifiManager, config, sm, widgetSet, encoder);
+    #else
+        MainHelper::init(wifiManager, config, sm, widgetSet);
+    #endif
     MainHelper::setupLittleFS();
     MainHelper::setupConfig();
     MainHelper::setupButtons();
